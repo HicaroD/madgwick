@@ -53,8 +53,8 @@ bool madgwick_reset(struct madgwick *filter);
  * fusion will not occur. Returns true on success, false on failure.
  */
 bool madgwick_update(struct madgwick *filter, float gx, float gy, float gz,
-                         float ax, float ay, float az, float mx, float my,
-                         float mz);
+                     float ax, float ay, float az, float mx, float my,
+                     float mz);
 
 /*
  * Returns AHRS Quaternion, as values between -1.0 and +1.0.
@@ -64,7 +64,7 @@ bool madgwick_update(struct madgwick *filter, float gx, float gy, float gz,
  * q0, q1, q2 and q3 are undetermined.
  */
 bool madgwick_get_quaternion(struct madgwick *filter, float *q0, float *q1,
-                                 float *q2, float *q3);
+                             float *q2, float *q3);
 
 /*
  * Returns AHRS angles of roll, pitch and yaw, in Radians between -Pi and +Pi.
@@ -74,4 +74,4 @@ bool madgwick_get_quaternion(struct madgwick *filter, float *q0, float *q1,
  * roll, pitch and yaw are undetermined.
  */
 bool madgwick_get_angles(struct madgwick *filter, float *roll, float *pitch,
-                             float *yaw);
+                         float *yaw);

@@ -21,7 +21,7 @@
 // Fast inverse square-root
 // See: http://en.wikipedia.org/wiki/Fast_inverse_square_root
 
-static float invSqrt(float x) {
+static float inverse_square_root(float x) {
   union {
     float f;
     uint32_t i;
@@ -92,7 +92,7 @@ static bool madgwick_updateIMU(struct madgwick *filter, float gx, float gy,
   // accelerometer normalisation)
   if (!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f))) {
     // Normalise accelerometer measurement
-    recipNorm = invSqrt(ax * ax + ay * ay + az * az);
+    recipNorm = inverse_square_root(ax * ax + ay * ay + az * az);
     ax *= recipNorm;
     ay *= recipNorm;
     az *= recipNorm;
@@ -120,8 +120,8 @@ static bool madgwick_updateIMU(struct madgwick *filter, float gx, float gy,
          _8q2 * q1q1 + _8q2 * q2q2 + _4q2 * az;
     s3 = 4.0f * q1q1 * filter->q3 - _2q1 * ax + 4.0f * q2q2 * filter->q3 -
          _2q2 * ay;
-    recipNorm = invSqrt(s0 * s0 + s1 * s1 + s2 * s2 +
-                        s3 * s3); // normalise step magnitude
+    recipNorm = inverse_square_root(s0 * s0 + s1 * s1 + s2 * s2 +
+                                    s3 * s3); // normalise step magnitude
     s0 *= recipNorm;
     s1 *= recipNorm;
     s2 *= recipNorm;
@@ -141,8 +141,9 @@ static bool madgwick_updateIMU(struct madgwick *filter, float gx, float gy,
   filter->q3 += qDot4 * filter->freq;
 
   // Normalise quaternion
-  recipNorm = invSqrt(filter->q0 * filter->q0 + filter->q1 * filter->q1 +
-                      filter->q2 * filter->q2 + filter->q3 * filter->q3);
+  recipNorm =
+      inverse_square_root(filter->q0 * filter->q0 + filter->q1 * filter->q1 +
+                          filter->q2 * filter->q2 + filter->q3 * filter->q3);
   filter->q0 *= recipNorm;
   filter->q1 *= recipNorm;
   filter->q2 *= recipNorm;
@@ -182,13 +183,13 @@ bool madgwick_update(struct madgwick *filter, float gx, float gy, float gz,
   // accelerometer normalisation)
   if (!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f))) {
     // Normalise accelerometer measurement
-    recipNorm = invSqrt(ax * ax + ay * ay + az * az);
+    recipNorm = inverse_square_root(ax * ax + ay * ay + az * az);
     ax *= recipNorm;
     ay *= recipNorm;
     az *= recipNorm;
 
     // Normalise magnetometer measurement
-    recipNorm = invSqrt(mx * mx + my * my + mz * mz);
+    recipNorm = inverse_square_root(mx * mx + my * my + mz * mz);
     mx *= recipNorm;
     my *= recipNorm;
     mz *= recipNorm;
@@ -264,8 +265,8 @@ bool madgwick_update(struct madgwick *filter, float gx, float gy, float gz,
              (_2bx * (q1q2 - q0q3) + _2bz * (q0q1 + q2q3) - my) +
          _2bx * filter->q1 *
              (_2bx * (q0q2 + q1q3) + _2bz * (0.5f - q1q1 - q2q2) - mz);
-    recipNorm = invSqrt(s0 * s0 + s1 * s1 + s2 * s2 +
-                        s3 * s3); // normalise step magnitude
+    recipNorm = inverse_square_root(s0 * s0 + s1 * s1 + s2 * s2 +
+                                    s3 * s3); // normalise step magnitude
     s0 *= recipNorm;
     s1 *= recipNorm;
     s2 *= recipNorm;
@@ -285,8 +286,9 @@ bool madgwick_update(struct madgwick *filter, float gx, float gy, float gz,
   filter->q3 += qDot4 * filter->freq;
 
   // Normalise quaternion
-  recipNorm = invSqrt(filter->q0 * filter->q0 + filter->q1 * filter->q1 +
-                      filter->q2 * filter->q2 + filter->q3 * filter->q3);
+  recipNorm =
+      inverse_square_root(filter->q0 * filter->q0 + filter->q1 * filter->q1 +
+                          filter->q2 * filter->q2 + filter->q3 * filter->q3);
   filter->q0 *= recipNorm;
   filter->q1 *= recipNorm;
   filter->q2 *= recipNorm;
