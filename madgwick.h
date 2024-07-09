@@ -24,7 +24,7 @@
 
 /* Madgwick filter structure. */
 struct madgwick {
-  float beta;
+  float gain;
   float q0;
   float q1;
   float q2;
@@ -36,17 +36,11 @@ struct madgwick {
  * the update rate to rate variable and the gain to gain variable
  * Returns a pointer to a `struct madgwick`, or NULL otherwise.
  */
-struct madgwick *madgwick_create(float beta, float rate);
+struct madgwick *madgwick_create(float rate, float gain);
 
 /* Clean up and return memory for the filter
  */
 bool madgwick_destroy(struct madgwick **filter);
-
-/* Sets the filter update rate and gain (defaults to freq=100Hz and gain=0.1)
- * The `madgwick_update()` function then expects to be called at `freq`
- * per second.
- */
-// bool madgwick_set_params(struct madgwick *filter, float frequency, float beta);
 
 /* Resets the filter Quaternion to an initial state (of {1,0,0,0}).
  */

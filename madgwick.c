@@ -37,7 +37,7 @@ static float invSqrt(float x) {
   return conv.f;
 }
 
-struct madgwick *madgwick_create(float beta, float rate) {
+struct madgwick *madgwick_create(float rate, float gain) {
   struct madgwick *filter;
 
   filter = calloc(1, sizeof(struct madgwick));
@@ -45,8 +45,8 @@ struct madgwick *madgwick_create(float beta, float rate) {
     return NULL;
   }
 
-  filter->beta = beta;
   filter->freq = 1.0f / rate;
+  filter->gain = gain;
 
   madgwick_reset(filter);
   return filter;
@@ -128,10 +128,10 @@ static bool madgwick_updateIMU(struct madgwick *filter, float gx, float gy,
     s3 *= recipNorm;
 
     // Apply feedback step
-    qDot1 -= filter->beta * s0;
-    qDot2 -= filter->beta * s1;
-    qDot3 -= filter->beta * s2;
-    qDot4 -= filter->beta * s3;
+    qDot1 -= filter->gain * s0;
+    qDot2 -= filter->gain * s1;
+    qDot3 -= filter->gain * s2;
+    qDot4 -= filter->gain * s3;
   }
 
   // Integrate rate of change of quaternion to yield quaternion
@@ -272,10 +272,10 @@ bool madgwick_update(struct madgwick *filter, float gx, float gy, float gz,
     s3 *= recipNorm;
 
     // Apply feedback step
-    qDot1 -= filter->beta * s0;
-    qDot2 -= filter->beta * s1;
-    qDot3 -= filter->beta * s2;
-    qDot4 -= filter->beta * s3;
+    qDot1 -= filter->gain * s0;
+    qDot2 -= filter->gain * s1;
+    qDot3 -= filter->gain * s2;
+    qDot4 -= filter->gain * s3;
   }
 
   // Integrate rate of change of quaternion to yield quaternion
