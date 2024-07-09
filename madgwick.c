@@ -14,7 +14,12 @@
 // 02/10/2011	SOH Madgwick	Optimised for reduced CPU load
 // 12/11/2018	Pim van Pelt    Rewritten to C for Mongoose OS
 //
-//=============================================================================================
+// =============================================================================================
+//
+// NOTE: The original code was modified by Hicro. A copy of the original license
+// is located at FILTER_LICENSE file.
+//
+
 #include "madgwick.h"
 
 //-------------------------------------------------------------------------------------------
