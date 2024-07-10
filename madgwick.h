@@ -53,8 +53,8 @@ bool madgwick_destroy(struct madgwick **filter);
  */
 bool madgwick_reset(struct madgwick *filter);
 
-/* Run an update cycle on the filter. Inputs gx/gy/gz are in any calibrated
- * input (for example, m/s/s or G), inputs of ax/ay/az are in Rads/sec, inputs
+/* Run an update cycle on the filter. Inputs ax/ay/az are in any calibrated
+ * input (for example, m/s/s or G), inputs of gx/gy/gz are in Rads/sec, inputs
  * of mx/my/mz are in any calibrated input (for example, uTesla or Gauss). The
  * inputs of mx/my/mz can be passed as 0.0, in which case the magnetometer
  * fusion will not occur. Returns true on success, false on failure.
