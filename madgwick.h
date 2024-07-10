@@ -22,21 +22,28 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#define RAD2DEG 57.29577951308232
+
 /* Madgwick filter structure. */
 struct madgwick {
   float gain;
+  float rate;
+
   float q0;
   float q1;
   float q2;
   float q3;
-  float freq;
+
+  float roll;
+  float pitch;
+  float yaw;
 };
 
 /* Create a new filter and initialize it by resetting the Quaternion and setting
  * the update rate to rate variable and the gain to gain variable
  * Returns a pointer to a `struct madgwick`, or NULL otherwise.
  */
-struct madgwick *madgwick_create(float rate, float gain);
+struct madgwick *madgwick_create(float freq, float gain);
 
 /* Clean up and return memory for the filter
  */
@@ -57,21 +64,7 @@ bool madgwick_update(struct madgwick *filter, float gx, float gy, float gz,
                      float mz);
 
 /*
- * Returns AHRS Quaternion, as values between -1.0 and +1.0.
- * Each of q0, q1, q2, q3 pointers may be NULL, in which case they will not be
- * filled in.
- * Returns true on success, false in case of error, in which case the values of
- * q0, q1, q2 and q3 are undetermined.
+ * Set AHRS angles of roll, pitch and yaw, in degrees, from the resultant
+ * quaternion. Returns true on success, false in case of error.
  */
-bool madgwick_get_quaternion(struct madgwick *filter, float *q0, float *q1,
-                             float *q2, float *q3);
-
-/*
- * Returns AHRS angles of roll, pitch and yaw, in Radians between -Pi and +Pi.
- * Each of the roll, pitch and yaw pointers may be NULL, in which case they will
- * not be filled in.
- * Returns true on success, false in case of error, in which case the values of
- * roll, pitch and yaw are undetermined.
- */
-bool madgwick_get_angles(struct madgwick *filter, float *roll, float *pitch,
-                         float *yaw);
+bool madgwick_set_angles(struct madgwick *filter);

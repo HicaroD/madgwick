@@ -42,7 +42,7 @@ static float inverse_square_root(float x) {
   return conv.f;
 }
 
-struct madgwick *madgwick_create(float rate, float gain) {
+struct madgwick *madgwick_create(float freq, float gain) {
   struct madgwick *filter;
 
   filter = calloc(1, sizeof(struct madgwick));
@@ -50,7 +50,7 @@ struct madgwick *madgwick_create(float rate, float gain) {
     return NULL;
   }
 
-  filter->freq = 1.0f / rate;
+  filter->rate = 1.0f / freq;
   filter->gain = gain;
 
   madgwick_reset(filter);
@@ -140,10 +140,10 @@ static bool madgwick_updateIMU(struct madgwick *filter, float gx, float gy,
   }
 
   // Integrate rate of change of quaternion to yield quaternion
-  filter->q0 += qDot1 * filter->freq;
-  filter->q1 += qDot2 * filter->freq;
-  filter->q2 += qDot3 * filter->freq;
-  filter->q3 += qDot4 * filter->freq;
+  filter->q0 += qDot1 * filter->rate;
+  filter->q1 += qDot2 * filter->rate;
+  filter->q2 += qDot3 * filter->rate;
+  filter->q3 += qDot4 * filter->rate;
 
   // Normalise quaternion
   recipNorm =
@@ -157,8 +157,8 @@ static bool madgwick_updateIMU(struct madgwick *filter, float gx, float gy,
   return true;
 }
 
-bool madgwick_update(struct madgwick *filter, float gx, float gy, float gz,
-                     float ax, float ay, float az, float mx, float my,
+bool madgwick_update(struct madgwick *filter, float ax, float ay, float az,
+                     float gx, float gy, float gz, float mx, float my,
                      float mz) {
   if (!filter) {
     return false;
@@ -285,10 +285,10 @@ bool madgwick_update(struct madgwick *filter, float gx, float gy, float gz,
   }
 
   // Integrate rate of change of quaternion to yield quaternion
-  filter->q0 += qDot1 * filter->freq;
-  filter->q1 += qDot2 * filter->freq;
-  filter->q2 += qDot3 * filter->freq;
-  filter->q3 += qDot4 * filter->freq;
+  filter->q0 += qDot1 * filter->rate;
+  filter->q1 += qDot2 * filter->rate;
+  filter->q2 += qDot3 * filter->rate;
+  filter->q3 += qDot4 * filter->rate;
 
   // Normalise quaternion
   recipNorm =
@@ -299,44 +299,28 @@ bool madgwick_update(struct madgwick *filter, float gx, float gy, float gz,
   filter->q2 *= recipNorm;
   filter->q3 *= recipNorm;
 
+  madgwick_set_angles(filter);
+
   return true;
 }
 
-bool madgwick_get_quaternion(struct madgwick *filter, float *q0, float *q1,
-                             float *q2, float *q3) {
+bool madgwick_set_angles(struct madgwick *filter) {
   if (!filter) {
     return false;
   }
-  if (q0) {
-    *q0 = filter->q0;
-  }
-  if (q1) {
-    *q1 = filter->q1;
-  }
-  if (q2) {
-    *q2 = filter->q2;
-  }
-  if (q3) {
-    *q3 = filter->q3;
-  }
-  return true;
-}
 
-bool madgwick_get_angles(struct madgwick *filter, float *roll, float *pitch,
-                         float *yaw) {
-  if (!filter) {
-    return false;
-  }
-  if (roll) {
-    *roll = asinf(-2.0f * (filter->q1 * filter->q3 - filter->q0 * filter->q2));
-  }
-  if (pitch) {
-    *pitch = atan2f(filter->q0 * filter->q1 + filter->q2 * filter->q3,
-                    0.5f - filter->q1 * filter->q1 - filter->q2 * filter->q2);
-  }
-  if (yaw) {
-    *yaw = atan2f(filter->q1 * filter->q2 + filter->q0 * filter->q3,
-                  0.5f - filter->q2 * filter->q2 - filter->q3 * filter->q3);
-  }
+  filter->roll =
+      asinf(-2.0f * (filter->q1 * filter->q3 - filter->q0 * filter->q2));
+  filter->pitch =
+      atan2f(filter->q0 * filter->q1 + filter->q2 * filter->q3,
+             0.5f - filter->q1 * filter->q1 - filter->q2 * filter->q2);
+  filter->yaw =
+      atan2f(filter->q1 * filter->q2 + filter->q0 * filter->q3,
+             0.5f - filter->q2 * filter->q2 - filter->q3 * filter->q3);
+
+  filter->roll *= RAD2DEG;
+  filter->pitch *= RAD2DEG;
+  filter->yaw *= RAD2DEG;
+
   return true;
 }
