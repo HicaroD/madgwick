@@ -1,7 +1,5 @@
 import ctypes
-import random
-
-MADGWICK = ctypes.CDLL(name="./madgwick.so")
+import numpy as np
 
 
 class Madgwick(ctypes.Structure):
@@ -18,22 +16,30 @@ class Madgwick(ctypes.Structure):
     ]
 
 
+MADGWICK = ctypes.CDLL(name="./madgwick.so")
+
 MADGWICK.madgwick_create.restype = ctypes.POINTER(Madgwick)
 MADGWICK.madgwick_create.argtypes = [ctypes.c_float, ctypes.c_float]
 
-MADGWICK.madgwick_update.restype = ctypes.c_bool
-MADGWICK.madgwick_update.argtypes = [
-    ctypes.POINTER(Madgwick),
-    ctypes.c_float,  # ax
-    ctypes.c_float,  # ay
-    ctypes.c_float,  # az
-    ctypes.c_float,  # gx
-    ctypes.c_float,  # gy
-    ctypes.c_float,  # gz
-    ctypes.c_float,  # mx
-    ctypes.c_float,  # my
-    ctypes.c_float,  # mz
+MADGWICK.madgwick_filter.restype = ctypes.POINTER(ctypes.POINTER(ctypes.c_float))
+MADGWICK.madgwick_filter.argtypes = [
+    ctypes.POINTER(Madgwick),  # *struct madgwick *filter
+    ctypes.POINTER(ctypes.POINTER(ctypes.c_float)),  # float** acc
+    ctypes.POINTER(ctypes.POINTER(ctypes.c_float)),  # float** gyro
+    ctypes.POINTER(ctypes.POINTER(ctypes.c_float)),  # float** mag
+    ctypes.c_size_t,  # size_t size
 ]
+
+MADGWICK.madgwick_destroy.restype = ctypes.c_bool
+MADGWICK.madgwick_destroy.argtypes = [ctypes.POINTER(ctypes.POINTER(Madgwick))]
+
+
+def numpy_matrix_to_ctypes(matrix: np.ndarray):
+    FloatArrayType = ctypes.c_float * len(matrix[0])
+    float_arrays = [FloatArrayType(*row) for row in matrix]
+    rows = [ctypes.cast(row, ctypes.POINTER(ctypes.c_float)) for row in float_arrays]
+    float_pointers = (ctypes.POINTER(ctypes.c_float) * len(matrix))(*rows)
+    return ctypes.cast(float_pointers, ctypes.POINTER(ctypes.POINTER(ctypes.c_float)))
 
 
 def main():
@@ -45,33 +51,22 @@ def main():
         print("error: filter is NULL")
         return
 
-    filtered_data = []
+    acc = numpy_matrix_to_ctypes(np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
+    gyro = numpy_matrix_to_ctypes(np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
+    mag = numpy_matrix_to_ctypes(np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
 
-    n = 5_000_000
-    for _ in range(n):
-        mock_data = [random.random() for _ in range(9)]
-        MADGWICK.madgwick_update(
-            filter,
-            mock_data[0],
-            mock_data[1],
-            mock_data[2],
-            mock_data[3],
-            mock_data[4],
-            mock_data[5],
-            mock_data[6],
-            mock_data[7],
-            mock_data[8],
-        )
-        filtered_data.append(
-            (
-                filter.contents.roll,
-                filter.contents.pitch,
-                filter.contents.yaw,
-            )
-        )
+    okay = MADGWICK.madgwick_filter(filter, acc, gyro, mag, 2)
+    if okay is None:
+        print("error: unable to filter data")
+        return
 
-    for data in filtered_data:
-        print(data)
+    okay = MADGWICK.madgwick_destroy(filter)
+    if not okay:
+        print("error: unable to clean up memory from filter")
+        return
+
+    print("Done")
 
 
-main()
+if __name__ == "__main__":
+    main()
