@@ -1,5 +1,6 @@
 import ctypes
 import numpy as np
+from time import time
 
 
 class Madgwick(ctypes.Structure):
@@ -34,12 +35,24 @@ MADGWICK.madgwick_destroy.restype = ctypes.c_bool
 MADGWICK.madgwick_destroy.argtypes = [ctypes.POINTER(ctypes.POINTER(Madgwick))]
 
 
-def numpy_matrix_to_ctypes(matrix: np.ndarray):
+def from_numpy_matrix_to_float_pp_ctypes(matrix: np.ndarray):
     FloatArrayType = ctypes.c_float * len(matrix[0])
     float_arrays = [FloatArrayType(*row) for row in matrix]
     rows = [ctypes.cast(row, ctypes.POINTER(ctypes.c_float)) for row in float_arrays]
     float_pointers = (ctypes.POINTER(ctypes.c_float) * len(matrix))(*rows)
     return ctypes.cast(float_pointers, ctypes.POINTER(ctypes.POINTER(ctypes.c_float)))
+
+
+def from_ctypes_float_pp_to_numpy_matrix(matrix_ptr, rows, cols):
+    array = np.empty((rows, cols), dtype=np.float32)
+    for row in range(rows):
+        row_ptr = matrix_ptr[row]
+        array[row, :] = np.ctypeslib.as_array(row_ptr, shape=(cols,))
+    return array
+
+
+def generate_random_matrix(n, low=0.0, high=1.0):
+    return np.random.uniform(low, high, size=(n, 3))
 
 
 def main():
@@ -51,14 +64,39 @@ def main():
         print("error: filter is NULL")
         return
 
-    acc = numpy_matrix_to_ctypes(np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
-    gyro = numpy_matrix_to_ctypes(np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
-    mag = numpy_matrix_to_ctypes(np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
+    n = 2_000_000
 
-    okay = MADGWICK.madgwick_filter(filter, acc, gyro, mag, 2)
-    if okay is None:
+    acc = generate_random_matrix(n, high=10.0)
+    gyro = generate_random_matrix(n, high=10.0)
+    mag = generate_random_matrix(n, high=10.0)
+
+    p_acc = from_numpy_matrix_to_float_pp_ctypes(acc)
+    p_gyro = from_numpy_matrix_to_float_pp_ctypes(gyro)
+    p_mag = from_numpy_matrix_to_float_pp_ctypes(mag)
+
+    start = time()
+
+    raw_buffer_data = MADGWICK.madgwick_filter(
+        filter,
+        p_acc,
+        p_gyro,
+        p_mag,
+        len(acc),
+    )
+    if raw_buffer_data is None:
         print("error: unable to filter data")
         return
+
+    filtered_data = from_ctypes_float_pp_to_numpy_matrix(
+        raw_buffer_data,
+        len(acc),
+        len(acc[0]),
+    )
+
+    end = time()
+    print("Time taken: ", end - start)
+
+    print(filtered_data)
 
     okay = MADGWICK.madgwick_destroy(filter)
     if not okay:
