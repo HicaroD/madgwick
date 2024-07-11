@@ -42,10 +42,29 @@ static float inverse_square_root(float x) {
   return conv.f;
 }
 
+/* Resets the filter Quaternion to an initial state (of {1,0,0,0}).
+ */
+static bool madgwick_reset(struct madgwick *filter) {
+  if (!filter) {
+    return false;
+  }
+
+  filter->q0 = 1.0f;
+  filter->q1 = 0.0f;
+  filter->q2 = 0.0f;
+  filter->q3 = 0.0f;
+
+  filter->roll = 0;
+  filter->pitch = 0;
+  filter->yaw = 0;
+
+  return true;
+}
+
 struct madgwick *madgwick_create(float freq, float gain) {
   struct madgwick *filter;
 
-  filter = calloc(1, sizeof(struct madgwick));
+  filter = (struct madgwick *)malloc(sizeof(struct madgwick));
   if (!filter) {
     return NULL;
   }
@@ -66,19 +85,8 @@ bool madgwick_destroy(struct madgwick **filter) {
   return true;
 }
 
-bool madgwick_reset(struct madgwick *filter) {
-  if (!filter) {
-    return false;
-  }
-  filter->q0 = 1.0f;
-  filter->q1 = 0.0f;
-  filter->q2 = 0.0f;
-  filter->q3 = 0.0f;
-  return true;
-}
-
-static bool madgwick_updateIMU(struct madgwick *filter, float gx, float gy,
-                               float gz, float ax, float ay, float az) {
+static bool madgwick_updateIMU(struct madgwick *filter, float ax, float ay,
+                               float az, float gx, float gy, float gz) {
   float recipNorm;
   float s0, s1, s2, s3;
   float qDot1, qDot2, qDot3, qDot4;
@@ -157,9 +165,41 @@ static bool madgwick_updateIMU(struct madgwick *filter, float gx, float gy,
   return true;
 }
 
-bool madgwick_update(struct madgwick *filter, float ax, float ay, float az,
-                     float gx, float gy, float gz, float mx, float my,
-                     float mz) {
+/*
+ * Set AHRS angles of roll, pitch and yaw, in degrees, from the resultant
+ * quaternion. Returns true on success, false in case of error.
+ */
+static bool madgwick_set_angles(struct madgwick *filter) {
+  if (!filter) {
+    return false;
+  }
+
+  // TODO: make sure they are properly set
+  filter->roll =
+      asinf(-2.0f * (filter->q1 * filter->q3 - filter->q0 * filter->q2));
+  filter->pitch =
+      atan2f(filter->q0 * filter->q1 + filter->q2 * filter->q3,
+             0.5f - filter->q1 * filter->q1 - filter->q2 * filter->q2);
+  filter->yaw =
+      atan2f(filter->q1 * filter->q2 + filter->q0 * filter->q3,
+             0.5f - filter->q2 * filter->q2 - filter->q3 * filter->q3);
+
+  filter->roll *= RAD2DEG;
+  filter->pitch *= RAD2DEG;
+  filter->yaw *= RAD2DEG;
+
+  return true;
+}
+
+/* Run an update cycle on the filter. Inputs ax/ay/az are in any calibrated
+ * input (for example, m/s/s or G), inputs of gx/gy/gz are in Rads/sec, inputs
+ * of mx/my/mz are in any calibrated input (for example, uTesla or Gauss). The
+ * inputs of mx/my/mz can be passed as 0.0, in which case the magnetometer
+ * fusion will not occur. Returns true on success, false on failure.
+ */
+static bool madgwick_update(struct madgwick *filter, float ax, float ay,
+                            float az, float gx, float gy, float gz, float mx,
+                            float my, float mz) {
   if (!filter) {
     return false;
   }
@@ -174,8 +214,8 @@ bool madgwick_update(struct madgwick *filter, float ax, float ay, float az,
   // Use IMU algorithm if magnetometer measurement invalid (avoids NaN in
   // magnetometer normalisation)
   if ((mx == 0.0f) && (my == 0.0f) && (mz == 0.0f)) {
-    madgwick_updateIMU(filter, gx, gy, gz, ax, ay, az);
-    return false;
+    bool okay = madgwick_updateIMU(filter, ax, ay, az, gx, gy, gz);
+    return okay;
   }
 
   // Rate of change of quaternion from gyroscope
@@ -299,28 +339,43 @@ bool madgwick_update(struct madgwick *filter, float ax, float ay, float az,
   filter->q2 *= recipNorm;
   filter->q3 *= recipNorm;
 
-  madgwick_set_angles(filter);
-
-  return true;
+  return madgwick_set_angles(filter);
 }
 
-bool madgwick_set_angles(struct madgwick *filter) {
-  if (!filter) {
-    return false;
+float **madgwick_filter(struct madgwick *filter, float **acc, float **gyro,
+                        float **mag, size_t size) {
+  float **matrix = (float **)malloc(size * sizeof(float *));
+  // TODO: improve error handling, maybe store a string in the struct and set
+  // the message in case of error
+  if (!matrix) {
+    fprintf(stderr,
+            "unable to allocate matrix for storing filtered data in memory\n");
+    return NULL;
   }
 
-  filter->roll =
-      asinf(-2.0f * (filter->q1 * filter->q3 - filter->q0 * filter->q2));
-  filter->pitch =
-      atan2f(filter->q0 * filter->q1 + filter->q2 * filter->q3,
-             0.5f - filter->q1 * filter->q1 - filter->q2 * filter->q2);
-  filter->yaw =
-      atan2f(filter->q1 * filter->q2 + filter->q0 * filter->q3,
-             0.5f - filter->q2 * filter->q2 - filter->q3 * filter->q3);
 
-  filter->roll *= RAD2DEG;
-  filter->pitch *= RAD2DEG;
-  filter->yaw *= RAD2DEG;
+  for (size_t i = 0; i < size; ++i) {
+    matrix[i] = (float *)malloc(3 * sizeof(float));
 
-  return true;
+    // TODO: improve error handling, maybe store a string in the struct and set
+    // the message in case of error
+    if (!matrix[i]) {
+      fprintf(stderr, "unable to allocate row for storing euler angles\n");
+      return NULL;
+    }
+
+    bool okay = madgwick_update(filter, acc[i][0], acc[i][1], acc[i][2],
+                                gyro[i][0], gyro[i][1], gyro[i][2], mag[i][0],
+                                mag[i][1], mag[i][2]);
+    if (!okay) {
+      fprintf(stderr, "unable to filter data\n");
+      return NULL;
+    }
+
+    matrix[i][0] = filter->roll;
+    matrix[i][1] = filter->pitch;
+    matrix[i][2] = filter->yaw;
+  }
+
+  return matrix;
 }

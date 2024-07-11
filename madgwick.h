@@ -20,6 +20,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #define RAD2DEG 57.29577951308232
@@ -40,31 +41,18 @@ struct madgwick {
 };
 
 /* Create a new filter and initialize it by resetting the Quaternion and setting
- * the update rate to rate variable and the gain to gain variable
- * Returns a pointer to a `struct madgwick`, or NULL otherwise.
+ * the rate and gain variables.
+ * Returns a pointer to a `struct madgwick`, or NULL in case of error.
  */
 struct madgwick *madgwick_create(float freq, float gain);
 
-/* Clean up and return memory for the filter
+/* Clean up memory from allocated filter.
  */
 bool madgwick_destroy(struct madgwick **filter);
 
-/* Resets the filter Quaternion to an initial state (of {1,0,0,0}).
+/* Filter the received information from accelerometer, gyroscope and
+ * magnetometer using the Madgwick algorithm.
+ * Returns a Nx3 float matrix, or NULL in case of error.
  */
-bool madgwick_reset(struct madgwick *filter);
-
-/* Run an update cycle on the filter. Inputs ax/ay/az are in any calibrated
- * input (for example, m/s/s or G), inputs of gx/gy/gz are in Rads/sec, inputs
- * of mx/my/mz are in any calibrated input (for example, uTesla or Gauss). The
- * inputs of mx/my/mz can be passed as 0.0, in which case the magnetometer
- * fusion will not occur. Returns true on success, false on failure.
- */
-bool madgwick_update(struct madgwick *filter, float gx, float gy, float gz,
-                     float ax, float ay, float az, float mx, float my,
-                     float mz);
-
-/*
- * Set AHRS angles of roll, pitch and yaw, in degrees, from the resultant
- * quaternion. Returns true on success, false in case of error.
- */
-bool madgwick_set_angles(struct madgwick *filter);
+float **madgwick_filter(struct madgwick *filter, float **acc, float **gyro,
+                        float **mag, size_t size);
