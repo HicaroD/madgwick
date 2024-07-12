@@ -2,8 +2,10 @@ import ctypes
 import numpy as np
 import pyinstrument
 
+Madgwick = ctypes.CDLL(name="./madgwick.so")
 
-class Madgwick(ctypes.Structure):
+
+class Madgwick_CStruct(ctypes.Structure):
     _fields_ = [
         ("gain", ctypes.c_float),
         ("rate", ctypes.c_float),
@@ -17,26 +19,34 @@ class Madgwick(ctypes.Structure):
     ]
 
 
-MADGWICK = ctypes.CDLL(name="./madgwick.so")
+Madgwick.madgwick_create.restype = ctypes.POINTER(Madgwick_CStruct)
+Madgwick.madgwick_create.argtypes = [
+    ctypes.c_float,  # float freq
+    ctypes.c_float,  # float gain
+]
 
-MADGWICK.madgwick_create.restype = ctypes.POINTER(Madgwick)
-MADGWICK.madgwick_create.argtypes = [ctypes.c_float, ctypes.c_float]
-
-MADGWICK.madgwick_filter.restype = ctypes.POINTER(ctypes.c_float)
-MADGWICK.madgwick_filter.argtypes = [
-    ctypes.POINTER(Madgwick),  # struct madgwick *filter
+Madgwick.madgwick_filter.restype = ctypes.POINTER(ctypes.c_float)
+Madgwick.madgwick_filter.argtypes = [
+    ctypes.POINTER(Madgwick_CStruct),  # struct madgwick *filter
     ctypes.POINTER(ctypes.c_float),  # float* acc
     ctypes.POINTER(ctypes.c_float),  # float* gyro
     ctypes.POINTER(ctypes.c_float),  # float* mag
     ctypes.c_size_t,  # size_t rows
 ]
 
-MADGWICK.madgwick_destroy.restype = ctypes.c_bool
-MADGWICK.madgwick_destroy.argtypes = [ctypes.POINTER(ctypes.POINTER(Madgwick))]
+Madgwick.madgwick_destroy.restype = ctypes.c_bool
+Madgwick.madgwick_destroy.argtypes = [
+    ctypes.POINTER(ctypes.POINTER(Madgwick_CStruct)),  # struct madgwick **filter
+]
 
 
 def from_numpy_matrix_to_float_p(matrix: np.ndarray):
     arr = np.ascontiguousarray(matrix, dtype=np.float32)
+    if arr.flags["C_CONTIGUOUS"]:
+        print("matrix IS C-contiguous, which means NO COPY IS BEING DONE")
+    else:
+        print("matrix IS NOT C-contiguous, which means A COPY IS BEING DONE")
+    print()
     return arr.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
 
 
@@ -53,7 +63,7 @@ def main():
     frequency = 4.0
     gain = 0.1
 
-    filter = MADGWICK.madgwick_create(frequency, gain)
+    filter = Madgwick.madgwick_create(frequency, gain)
     if not filter:
         print("error: filter is NULL")
         return
@@ -71,7 +81,7 @@ def main():
         p_gyro = from_numpy_matrix_to_float_p(gyro)
         p_mag = from_numpy_matrix_to_float_p(mag)
 
-        raw_buffer_data = MADGWICK.madgwick_filter(
+        raw_buffer_data = Madgwick.madgwick_filter(
             filter,
             p_acc,
             p_gyro,
@@ -90,7 +100,7 @@ def main():
         )
 
     print(filtered_data)
-    okay = MADGWICK.madgwick_destroy(filter)
+    okay = Madgwick.madgwick_destroy(filter)
     if not okay:
         print("error: unable to clean up memory from filter")
         return
