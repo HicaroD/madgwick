@@ -2,7 +2,7 @@ import ctypes
 import numpy as np
 import pyinstrument
 
-Madgwick = ctypes.CDLL(name="./madgwick.so")
+MadgwickLib = ctypes.CDLL(name="./madgwick.so")
 
 
 class Madgwick_CStruct(ctypes.Structure):
@@ -19,14 +19,14 @@ class Madgwick_CStruct(ctypes.Structure):
     ]
 
 
-Madgwick.madgwick_create.restype = ctypes.POINTER(Madgwick_CStruct)
-Madgwick.madgwick_create.argtypes = [
+MadgwickLib.madgwick_create.restype = ctypes.POINTER(Madgwick_CStruct)
+MadgwickLib.madgwick_create.argtypes = [
     ctypes.c_float,  # float freq
     ctypes.c_float,  # float gain
 ]
 
-Madgwick.madgwick_filter.restype = ctypes.POINTER(ctypes.c_float)
-Madgwick.madgwick_filter.argtypes = [
+MadgwickLib.madgwick_filter.restype = ctypes.POINTER(ctypes.c_float)
+MadgwickLib.madgwick_filter.argtypes = [
     ctypes.POINTER(Madgwick_CStruct),  # struct madgwick *filter
     ctypes.POINTER(ctypes.c_float),  # float* acc
     ctypes.POINTER(ctypes.c_float),  # float* gyro
@@ -34,8 +34,8 @@ Madgwick.madgwick_filter.argtypes = [
     ctypes.c_size_t,  # size_t rows
 ]
 
-Madgwick.madgwick_destroy.restype = ctypes.c_bool
-Madgwick.madgwick_destroy.argtypes = [
+MadgwickLib.madgwick_destroy.restype = ctypes.c_bool
+MadgwickLib.madgwick_destroy.argtypes = [
     ctypes.POINTER(ctypes.POINTER(Madgwick_CStruct)),  # struct madgwick **filter
 ]
 
@@ -63,7 +63,7 @@ def main():
     frequency = 4.0
     gain = 0.1
 
-    filter = Madgwick.madgwick_create(frequency, gain)
+    filter = MadgwickLib.madgwick_create(frequency, gain)
     if not filter:
         print("error: filter is NULL")
         return
@@ -81,7 +81,7 @@ def main():
         p_gyro = from_numpy_matrix_to_float_p(gyro)
         p_mag = from_numpy_matrix_to_float_p(mag)
 
-        raw_buffer_data = Madgwick.madgwick_filter(
+        raw_buffer_data = MadgwickLib.madgwick_filter(
             filter,
             p_acc,
             p_gyro,
@@ -100,7 +100,7 @@ def main():
         )
 
     print(filtered_data)
-    okay = Madgwick.madgwick_destroy(filter)
+    okay = MadgwickLib.madgwick_destroy(filter)
     if not okay:
         print("error: unable to clean up memory from filter")
         return
