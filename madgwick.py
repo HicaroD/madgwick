@@ -41,7 +41,7 @@ def from_numpy_matrix_to_float_p(matrix: np.ndarray):
 
 
 def from_ctypes_float_p_to_numpy_matrix(matrix_ptr, rows, cols):
-    # memory shared here, no copy should be done!!
+    # memory is shared here, no copy should be done!!
     return np.ctypeslib.as_array(matrix_ptr, shape=(rows, cols))
 
 
@@ -58,7 +58,7 @@ def main():
         print("error: filter is NULL")
         return
 
-    n = 10_000_000
+    n = 40_000_000
     # n = 10
 
     acc = generate_random_matrix(n, high=10.0)
