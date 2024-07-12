@@ -342,9 +342,9 @@ static bool madgwick_update(struct madgwick *filter, float ax, float ay,
   return madgwick_set_angles(filter);
 }
 
-float **madgwick_filter(struct madgwick *filter, float **acc, float **gyro,
-                        float **mag, size_t size) {
-  float **matrix = (float **)malloc(size * sizeof(float *));
+float *madgwick_filter(struct madgwick *filter, float *acc, float *gyro,
+                       float *mag, size_t rows) {
+  float *matrix = malloc(rows * COLUMNS * sizeof(float));
   // TODO: improve error handling, maybe store a string in the struct and set
   // the message in case of error
   if (!matrix) {
@@ -353,28 +353,32 @@ float **madgwick_filter(struct madgwick *filter, float **acc, float **gyro,
     return NULL;
   }
 
+  for (size_t i = 0; i < rows; ++i) {
+    int x = INDEX(i, 0);
+    int y = INDEX(i, 1);
+    int z = INDEX(i, 2);
 
-  for (size_t i = 0; i < size; ++i) {
-    matrix[i] = (float *)malloc(3 * sizeof(float));
+    float ax = acc[x];
+    float ay = acc[y];
+    float az = acc[z];
 
-    // TODO: improve error handling, maybe store a string in the struct and set
-    // the message in case of error
-    if (!matrix[i]) {
-      fprintf(stderr, "unable to allocate row for storing euler angles\n");
-      return NULL;
-    }
+    float gx = gyro[x];
+    float gy = gyro[y];
+    float gz = gyro[z];
 
-    bool okay = madgwick_update(filter, acc[i][0], acc[i][1], acc[i][2],
-                                gyro[i][0], gyro[i][1], gyro[i][2], mag[i][0],
-                                mag[i][1], mag[i][2]);
+    float mx = mag != NULL ? mag[x] : 0;
+    float my = mag != NULL ? mag[y] : 0;
+    float mz = mag != NULL ? mag[z] : 0;
+
+    bool okay = madgwick_update(filter, ax, ay, az, gx, gy, gz, mx, my, mz);
     if (!okay) {
       fprintf(stderr, "unable to filter data\n");
       return NULL;
     }
 
-    matrix[i][0] = filter->roll;
-    matrix[i][1] = filter->pitch;
-    matrix[i][2] = filter->yaw;
+    matrix[x] = filter->roll;
+    matrix[y] = filter->pitch;
+    matrix[z] = filter->yaw;
   }
 
   return matrix;

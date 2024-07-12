@@ -24,6 +24,8 @@
 #include <stdlib.h>
 
 #define RAD2DEG 57.29577951308232
+#define COLUMNS 3
+#define INDEX(i, j) (i * COLUMNS + j)
 
 /* Madgwick filter structure. */
 struct madgwick {
@@ -54,5 +56,5 @@ bool madgwick_destroy(struct madgwick **filter);
  * magnetometer using the Madgwick algorithm.
  * Returns a Nx3 float matrix, or NULL in case of error.
  */
-float **madgwick_filter(struct madgwick *filter, float **acc, float **gyro,
-                        float **mag, size_t size);
+float *madgwick_filter(struct madgwick *filter, float *acc, float *gyro,
+                       float *mag, size_t rows);
