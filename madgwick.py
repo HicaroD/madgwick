@@ -1,5 +1,4 @@
 import ctypes
-import os
 
 import numpy as np
 
@@ -18,11 +17,34 @@ class Madgwick_CStruct(ctypes.Structure):
     ]
 
 
+class TypesConverter:
+    @staticmethod
+    def from_numpy_matrix_to_float_p(matrix: np.ndarray):
+        arr = np.ascontiguousarray(matrix, dtype=np.float32)
+        if arr.flags["C_CONTIGUOUS"]:
+            print("matrix IS C-contiguous, which means NO COPY IS BEING DONE")
+        else:
+            print("matrix IS NOT C-contiguous, which means A COPY IS BEING DONE")
+        return arr.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+
+    @staticmethod
+    def from_numpy_arr_to_float_p(arr: np.ndarray):
+        return arr.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+
+    @staticmethod
+    def from_ctypes_float_p_to_numpy_matrix(matrix_ptr, rows: int, cols: int):
+        # memory is shared here, no copy should be done with this operation!!
+        if matrix_ptr is None:
+            raise ValueError("matrix ptr is NULL")
+        arr = np.ctypeslib.as_array(matrix_ptr, shape=(rows, cols))
+        return arr
+
+
 class MadgwickC:
     def __init__(
         self,
         frequency: float,
-        gain: float,
+        gain: float = 0.1,
     ) -> None:
         self._lib = self._setup_madgwick_lib()
         self._filter = self._lib.madgwick_create(frequency, gain)
@@ -35,46 +57,42 @@ class MadgwickC:
         gyro: np.ndarray,
         mag: np.ndarray | None = None,
     ) -> np.ndarray:
-        p_acc = self._from_numpy_matrix_to_float_p(acc)
-        p_gyro = self._from_numpy_matrix_to_float_p(gyro)
-        p_mag = self._from_numpy_matrix_to_float_p(mag) if mag is not None else None
+        p_acc = TypesConverter.from_numpy_matrix_to_float_p(acc)
+        p_gyro = TypesConverter.from_numpy_matrix_to_float_p(gyro)
+        p_mag = (
+            TypesConverter.from_numpy_matrix_to_float_p(mag)
+            if mag is not None
+            else None
+        )
+
+        rows = ctypes.c_size_t(len(acc))
 
         raw_buffer_data = self._lib.madgwick_filter(
             self._filter,
             p_acc,
             p_gyro,
             p_mag,
-            len(acc),
+            rows,
         )
 
         if raw_buffer_data is None:
             raise ValueError("unable to filter data")
 
-        filtered_data = self._from_ctypes_float_p_to_numpy_matrix(
+        filtered_data = TypesConverter.from_ctypes_float_p_to_numpy_matrix(
             raw_buffer_data,
             len(acc),
             len(acc[0]),
         )
 
+        return filtered_data
+
+    def clean(self):
         okay = self._lib.madgwick_destroy(self._filter)
         if not okay:
             raise ValueError("unable to clean up memory from filter")
 
-        return filtered_data
-
     def _setup_madgwick_lib(self) -> ctypes.CDLL:
-        current_directory = os.getcwd()
-        madgwick_lib_path = os.path.join(
-            current_directory,
-            "filters/algorithms/madgwick/cmadgwick.so",
-        )
-        if not os.path.exists(madgwick_lib_path):
-            raise FileNotFoundError(
-                "make sure to build the madgwick shared "
-                'library by running "make build-madgwick"'
-            )
-
-        madgwick_lib = ctypes.CDLL(name=madgwick_lib_path)
+        madgwick_lib = ctypes.CDLL(name="./madgwick.so")
 
         madgwick_lib.madgwick_create.restype = ctypes.POINTER(Madgwick_CStruct)
         madgwick_lib.madgwick_create.argtypes = [
@@ -99,72 +117,3 @@ class MadgwickC:
         ]
 
         return madgwick_lib
-
-    def _from_numpy_matrix_to_float_p(self, matrix: np.ndarray):
-        arr = np.ascontiguousarray(matrix, dtype=np.float32)
-        if arr.flags["C_CONTIGUOUS"]:
-            print("matrix IS C-contiguous, which means NO COPY IS BEING DONE")
-        else:
-            print("matrix IS NOT C-contiguous, which means A COPY IS BEING DONE")
-        return arr.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
-
-    def _from_ctypes_float_p_to_numpy_matrix(self, matrix_ptr, rows, cols):
-        # memory is shared here, no copy should be done with this operation!!
-        return np.ctypeslib.as_array(matrix_ptr, shape=(rows, cols))
-
-
-# def generate_random_matrix(n, low=0.0, high=1.0):
-#     return np.random.uniform(low, high, size=(n, 3))
-
-# def main():
-#     frequency = 4.0
-#     gain = 0.1
-#
-#     filter = MadgwickLib.madgwick_create(frequency, gain)
-#     if not filter:
-#         print("error: filter is NULL")
-#         return
-#
-#     n = 40_000_000
-#     # n = 10
-#
-#     acc = generate_random_matrix(n, high=10.0)
-#     gyro = generate_random_matrix(n, high=10.0)
-#     mag = generate_random_matrix(n, high=10.0)
-#
-#     profiler = pyinstrument.Profiler()
-#     with profiler:
-#         p_acc = from_numpy_matrix_to_float_p(acc)
-#         p_gyro = from_numpy_matrix_to_float_p(gyro)
-#         p_mag = from_numpy_matrix_to_float_p(mag)
-#
-#         raw_buffer_data = MadgwickLib.madgwick_filter(
-#             filter,
-#             p_acc,
-#             p_gyro,
-#             p_mag,
-#             len(acc),
-#         )
-#
-#         if raw_buffer_data is None:
-#             print("error: unable to filter data")
-#             return
-#
-#         filtered_data = from_ctypes_float_p_to_numpy_matrix(
-#             raw_buffer_data,
-#             len(acc),
-#             len(acc[0]),
-#         )
-#
-#     print(filtered_data)
-#     okay = MadgwickLib.madgwick_destroy(filter)
-#     if not okay:
-#         print("error: unable to clean up memory from filter")
-#         return
-#     print("Done")
-#
-#     profiler.open_in_browser(timeline=True)
-#
-#
-# if __name__ == "__main__":
-#     main()

@@ -3,7 +3,7 @@
 // license is located at FILTER_LICENSE file.
 //
 
-#include "cmadgwick.h"
+#include "madgwick.h"
 
 //-------------------------------------------------------------------------------------------
 // Fast inverse square-root
@@ -65,6 +65,33 @@ bool madgwick_destroy(struct madgwick **filter) {
   }
   free(*filter);
   *filter = NULL;
+  return true;
+}
+
+/*
+ * Set AHRS angles of roll, pitch and yaw, in degrees, from the resultant
+ * quaternion. Returns true on success, false in case of error.
+ */
+static bool madgwick_set_angles(struct madgwick *filter) {
+  if (!filter) {
+    fprintf(stderr, "C: filter is NULL on madgwick_set_angles");
+    return false;
+  }
+
+  // TODO: make sure they are properly set
+  filter->roll =
+      asinf(-2.0f * (filter->q1 * filter->q3 - filter->q0 * filter->q2));
+  filter->pitch =
+      atan2f(filter->q0 * filter->q1 + filter->q2 * filter->q3,
+             0.5f - filter->q1 * filter->q1 - filter->q2 * filter->q2);
+  filter->yaw =
+      atan2f(filter->q1 * filter->q2 + filter->q0 * filter->q3,
+             0.5f - filter->q2 * filter->q2 - filter->q3 * filter->q3);
+
+  filter->roll *= RAD2DEG;
+  filter->pitch *= RAD2DEG;
+  filter->yaw *= RAD2DEG;
+
   return true;
 }
 
@@ -145,33 +172,7 @@ static bool madgwick_updateIMU(struct madgwick *filter, float ax, float ay,
   filter->q2 *= recipNorm;
   filter->q3 *= recipNorm;
 
-  return true;
-}
-
-/*
- * Set AHRS angles of roll, pitch and yaw, in degrees, from the resultant
- * quaternion. Returns true on success, false in case of error.
- */
-static bool madgwick_set_angles(struct madgwick *filter) {
-  if (!filter) {
-    return false;
-  }
-
-  // TODO: make sure they are properly set
-  filter->roll =
-      asinf(-2.0f * (filter->q1 * filter->q3 - filter->q0 * filter->q2));
-  filter->pitch =
-      atan2f(filter->q0 * filter->q1 + filter->q2 * filter->q3,
-             0.5f - filter->q1 * filter->q1 - filter->q2 * filter->q2);
-  filter->yaw =
-      atan2f(filter->q1 * filter->q2 + filter->q0 * filter->q3,
-             0.5f - filter->q2 * filter->q2 - filter->q3 * filter->q3);
-
-  filter->roll *= RAD2DEG;
-  filter->pitch *= RAD2DEG;
-  filter->yaw *= RAD2DEG;
-
-  return true;
+  return madgwick_set_angles(filter);
 }
 
 /* Run an update cycle on the filter. Inputs ax/ay/az are in any calibrated
@@ -184,6 +185,7 @@ static bool madgwick_update(struct madgwick *filter, float ax, float ay,
                             float az, float gx, float gy, float gz, float mx,
                             float my, float mz) {
   if (!filter) {
+    fprintf(stderr, "C: filter is NULL on madgwick_update\n");
     return false;
   }
   float recipNorm;
@@ -336,10 +338,10 @@ float *madgwick_filter(struct madgwick *filter, float *acc, float *gyro,
     return NULL;
   }
 
-  for (size_t i = 0; i < rows; ++i) {
-    int x = INDEX(i, 0);
-    int y = INDEX(i, 1);
-    int z = INDEX(i, 2);
+  for (int i = 0; i < rows; ++i) {
+    size_t x = INDEX(i, 0);
+    size_t y = INDEX(i, 1);
+    size_t z = INDEX(i, 2);
 
     float ax = acc[x];
     float ay = acc[y];
@@ -349,13 +351,14 @@ float *madgwick_filter(struct madgwick *filter, float *acc, float *gyro,
     float gy = gyro[y];
     float gz = gyro[z];
 
-    float mx = mag != NULL ? mag[x] : 0;
-    float my = mag != NULL ? mag[y] : 0;
-    float mz = mag != NULL ? mag[z] : 0;
+    float mx = mag != NULL ? mag[x] : 0.0;
+    float my = mag != NULL ? mag[y] : 0.0;
+    float mz = mag != NULL ? mag[z] : 0.0;
 
+    printf("%d | %f,%f,%f\n", i, ax, ay, az);
     bool okay = madgwick_update(filter, ax, ay, az, gx, gy, gz, mx, my, mz);
     if (!okay) {
-      fprintf(stderr, "unable to filter data\n");
+      fprintf(stderr, "C: unable to filter data at iteration %d\n", i);
       return NULL;
     }
 

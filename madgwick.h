@@ -41,3 +41,4 @@ bool madgwick_destroy(struct madgwick **filter);
  */
 float *madgwick_filter(struct madgwick *filter, float *acc, float *gyro,
                        float *mag, size_t rows);
+
